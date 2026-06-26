@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Kukla x Intertrans — Inbound Shipment (GTF511)
+  title: Kukla x Intertrans â€” Inbound Shipment (GTF511)
   version: "0.1.0"
   description: >
     Draft API for inbound shipment messages (JSON) mapping into Intertrans.
@@ -114,6 +114,8 @@ components:
     Meta:
       type: object
       description: Message envelope metadata
+      required:
+        - messageDate
       properties:
         senderId:
           type: string
@@ -141,6 +143,10 @@ components:
     Shipment:
       type: object
       description: Shipment payload
+      required:
+        - reference
+        - pickup
+        - delivery
       properties:
         reference:
           type: string

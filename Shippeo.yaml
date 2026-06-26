@@ -1,0 +1,272 @@
+openapi: 3.0.3
+info:
+  title: Kukla x Intertrans — Inbound Shipment (GTF511)
+  version: "0.1.0"
+  description: >
+    Draft API for inbound shipment messages (JSON) mapping into Intertrans.
+    Authentication: Basic Auth (User/Password).
+    Date/time fields use ISO 8601 (RFC 3339), e.g. 2026-06-26T06:17:44+02:00.
+
+servers:
+  - url: https://www.intertrans.cloud/IT8Kukla/hs/kukla/
+    description: PRODUCTION
+  - url: https://www.intertrans.cloud/sandbox/hs/kukla/
+    description: SANDBOX
+
+tags:
+  - name: Inbound
+    description: Partner ? Intertrans inbound interfaces
+
+security:
+  - basicAuth: []
+
+paths:
+  /ShippeoAPI/V1/import:
+    post:
+      tags: [Inbound]
+      summary: Receive inbound shipment message (GTF511)
+      description: >
+        Accepts an inbound shipment message in JSON format and stores recognized fields in Intertrans
+        according to the mapping.
+      operationId: inboundGtf511
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Gtf511InboundMessage"
+            examples:
+              example:
+                summary: Example GTF511 inbound payload
+                value:
+                  meta:
+                    senderId: "QNPK9JJ2"
+                    duplicateReceiverId: "Y2MY4E42"
+                    messageType: "GTF511"
+                    messageDate: "2026-06-26T06:17:44+02:00"
+                    messageFunction: "4"
+                    messageReference: "063e250dcd1b4b0592a906702c89a502"
+                  shipment:
+                    reference: "0312077567"
+                    goodsDescription: "C1200HF-76701-BAG-00-00-00"
+                    customerReference: "0809132384"
+                    shipperReference: "LMEKD5GM"
+                    pickup:
+                      address:
+                        name: "SABIC IP - CAR Site - c/o Arniella"
+                        address1: "POLIGONO INDUSTRIAL, LA MOLINETA S/"
+                        address2: ""
+                        country: "ES"
+                        postalCode: "30331"
+                        city: "LOBOSILLO - MURCIA"
+                      departureDateTime: "2026-06-22T09:00:00+02:00"
+                    delivery:
+                      address:
+                        name: "Aectra for Automotive"
+                        address1: "Str. Linia de Centura nr.16"
+                        address2: ""
+                        country: "RO"
+                        postalCode: "077040"
+                        city: "Bragadiru"
+                      deliveryDateTime: "2026-06-24T17:00:00+02:00"
+                    totals:
+                      grossWeight: 1234.5
+                      grossVolume: 12.34
+      responses:
+        "200":
+          description: Message accepted and processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ack"
+              examples:
+                ok:
+                  value:
+                    status: ok
+                    message: accepted
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceException"
+        "401":
+          description: Unauthorized
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+
+  schemas:
+    Gtf511InboundMessage:
+      type: object
+      required: [meta, shipment]
+      properties:
+        meta:
+          $ref: "#/components/schemas/Meta"
+        shipment:
+          $ref: "#/components/schemas/Shipment"
+
+    Meta:
+      type: object
+      description: Message envelope metadata
+      properties:
+        senderId:
+          type: string
+          description: Partner sender identifier
+        duplicateReceiverId:
+          type: string
+          description: Optional additional receiver identifier
+        messageType:
+          type: string
+          description: Message type
+          example: GTF511
+        messageDate:
+          type: string
+          format: date-time
+          description: Order date (saved to Intertrans)
+          x-intertrans: Order date
+        messageFunction:
+          type: string
+          description: Message function code
+        messageReference:
+          type: string
+          description: Message unique reference
+      additionalProperties: true
+
+    Shipment:
+      type: object
+      description: Shipment payload
+      properties:
+        reference:
+          type: string
+          description: Shipment reference (saved to Intertrans)
+          x-intertrans: Reference
+        goodsDescription:
+          type: string
+          description: Description of goods (saved to Intertrans)
+          x-intertrans: goods descr.
+        customerReference:
+          type: string
+          description: Customer reference (saved to Intertrans)
+          x-intertrans: Customer Ref.
+        shipperReference:
+          type: string
+          description: Shipper reference (saved to Intertrans)
+          x-intertrans: Shipper Ref.
+
+        pickup:
+          $ref: "#/components/schemas/Pickup"
+        delivery:
+          $ref: "#/components/schemas/Delivery"
+        totals:
+          $ref: "#/components/schemas/Totals"
+      additionalProperties: true
+
+    Pickup:
+      type: object
+      description: Pickup information
+      properties:
+        address:
+          $ref: "#/components/schemas/Address"
+        departureDateTime:
+          type: string
+          format: date-time
+          description: Departure date/time (saved to Intertrans)
+          x-intertrans: Departure date
+      additionalProperties: true
+
+    Delivery:
+      type: object
+      description: Delivery information
+      properties:
+        address:
+          $ref: "#/components/schemas/Address"
+        deliveryDateTime:
+          type: string
+          format: date-time
+          description: Delivery date/time (saved to Intertrans)
+          x-intertrans: Date of delivery
+      additionalProperties: true
+
+    Address:
+      type: object
+      description: Address object (same mapping for FROM/TO)
+      properties:
+        name:
+          type: string
+          description: Name / Address
+          x-intertrans: Address
+        address1:
+          type: string
+          description: Street
+          x-intertrans: Street
+        address2:
+          type: string
+          description: Not used in Intertrans (kept for compatibility)
+          x-intertrans: ?? ????????????
+        country:
+          type: string
+          description: Country code (ISO 3166-1 alpha-2)
+          minLength: 2
+          maxLength: 2
+          x-intertrans: country
+        postalCode:
+          type: string
+          description: ZIP / postal code
+          x-intertrans: ZIPCode
+        city:
+          type: string
+          description: City
+          x-intertrans: city
+      additionalProperties: true
+
+    Totals:
+      type: object
+      description: Totals / measures
+      properties:
+        grossWeight:
+          type: number
+          description: Actual weight (saved to Intertrans)
+          x-intertrans: Actual weight
+        grossVolume:
+          type: number
+          description: Volume (saved to Intertrans)
+          x-intertrans: Volume
+      additionalProperties: true
+
+    Ack:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        message:
+          type: string
+          example: accepted
+
+    ServiceException:
+      type: object
+      description: Standard error response
+      properties:
+        error:
+          type: string
+          example: validation_error
+        details:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceExceptionItem"
+
+    ServiceExceptionItem:
+      type: object
+      properties:
+        field:
+          type: string
+          example: meta.messageDate
+        message:
+          type: string
+          example: must be RFC3339 date-time

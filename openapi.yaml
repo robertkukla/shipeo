@@ -1,21 +1,26 @@
 openapi: 3.0.3
+
 info:
-  title: Kukla x Intertrans — Inbound Shipment (GTF511)
-  version: "0.1.0"
+  title: Kukla x Intertrans x Shippeo — Integration API
+  version: "1.1.0"
   description: >
-    Draft API for inbound shipment messages (JSON) mapping into Intertrans.
-    Authentication: Basic Auth (User/Password).
-    Date/time fields use ISO 8601 (RFC 3339), e.g. 2026-06-26T06:17:44+02:00.
+    Unified API specification:
+    - Inbound: Partner -> Intertrans (we receive data on Intertrans endpoint)
+    - Outbound: Intertrans -> Shippeo (we send event data to Shippeo endpoint)
 
 servers:
   - url: https://www.intertrans.cloud/IT8Kukla/hs/kukla/
-    description: PRODUCTION
+    description: Intertrans PRODUCTION (INBOUND)
   - url: https://www.intertrans.cloud/sandbox/hs/kukla/
-    description: SANDBOX
+    description: Intertrans SANDBOX (INBOUND)
+  - url: https://api-edi.shippeo.com
+    description: Shippeo API (OUTBOUND)
 
 tags:
   - name: Inbound
-    description: Partner ? Intertrans inbound interfaces
+    description: Partner -> Intertrans
+  - name: Outbound
+    description: Intertrans -> Shippeo
 
 security:
   - basicAuth: []
@@ -26,8 +31,8 @@ paths:
       tags: [Inbound]
       summary: Receive inbound shipment message (GTF511)
       description: >
-        Accepts an inbound shipment message in JSON format and stores recognized fields in Intertrans
-        according to the mapping.
+        Accepts an inbound shipment message in JSON format and stores recognized fields
+        in Intertrans according to the mapping.
       operationId: inboundGtf511
       security:
         - basicAuth: []
@@ -36,63 +41,112 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Gtf511InboundMessage"
+              $ref: '#/components/schemas/Gtf511InboundMessage'
             examples:
               example:
                 summary: Example GTF511 inbound payload
                 value:
                   meta:
-                    senderId: "QNPK9JJ2"
-                    duplicateReceiverId: "Y2MY4E42"
-                    messageType: "GTF511"
-                    messageDate: "2026-06-26T06:17:44+02:00"
-                    messageFunction: "4"
-                    messageReference: "063e250dcd1b4b0592a906702c89a502"
+                    senderId: QNPK9JJ2
+                    duplicateReceiverId: Y2MY4E42
+                    messageType: GTF511
+                    messageDate: '2026-06-26T06:17:44+02:00'
+                    messageFunction: '4'
+                    messageReference: 063e250dcd1b4b0592a906702c89a502
                   shipment:
-                    reference: "0312077567"
-                    goodsDescription: "C1200HF-76701-BAG-00-00-00"
-                    customerReference: "0809132384"
-                    shipperReference: "LMEKD5GM"
+                    reference: '0312077567'
+                    goodsDescription: C1200HF-76701-BAG-00-00-00
+                    customerReference: '0809132384'
+                    shipperReference: LMEKD5GM
                     pickup:
                       address:
-                        name: "SABIC IP - CAR Site - c/o Arniella"
-                        address1: "POLIGONO INDUSTRIAL, LA MOLINETA S/"
-                        address2: ""
-                        country: "ES"
-                        postalCode: "30331"
-                        city: "LOBOSILLO - MURCIA"
-                      departureDateTime: "2026-06-22T09:00:00+02:00"
+                        name: SABIC IP - CAR Site - c/o Arniella
+                        address1: POLIGONO INDUSTRIAL, LA MOLINETA S/
+                        address2: ''
+                        country: ES
+                        postalCode: '30331'
+                        city: LOBOSILLO - MURCIA
+                      departureDateTime: '2026-06-22T09:00:00+02:00'
                     delivery:
                       address:
-                        name: "Aectra for Automotive"
-                        address1: "Str. Linia de Centura nr.16"
-                        address2: ""
-                        country: "RO"
-                        postalCode: "077040"
-                        city: "Bragadiru"
-                      deliveryDateTime: "2026-06-24T17:00:00+02:00"
+                        name: Aectra for Automotive
+                        address1: Str. Linia de Centura nr.16
+                        address2: ''
+                        country: RO
+                        postalCode: '077040'
+                        city: Bragadiru
+                      deliveryDateTime: '2026-06-24T17:00:00+02:00'
                     totals:
                       grossWeight: 1234.5
                       grossVolume: 12.34
       responses:
-        "200":
+        '200':
           description: Message accepted and processed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Ack"
-              examples:
-                ok:
-                  value:
-                    status: ok
-                    message: accepted
-        "400":
+                $ref: '#/components/schemas/Ack'
+        '400':
           description: Validation error
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ServiceException"
-        "401":
+                $ref: '#/components/schemas/ServiceException'
+        '401':
+          description: Unauthorized
+
+  /api/events:
+    post:
+      tags: [Outbound]
+      summary: Send shipment event to Shippeo
+      description: >
+        Sends outbound event data from Intertrans to Shippeo.
+        The payload structure is based on Mappe out.xlsx.
+        Event / justification mapping is based on Mappe Shippeo Out.xlsx.
+      operationId: sendOutboundEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutboundEventMessage'
+            examples:
+              deliveryCompletedConform:
+                summary: Delivery completed - conform
+                value:
+                  date_transmission: '2026-06-22T09:43:24'
+                  order:
+                    external_reference: '0312062064'
+                  situation:
+                    situation_code: LIV
+                    justification_code: CFM
+                    date: '2026-06-15T00:00:00'
+                    input_date: '2026-06-22T09:43:24'
+              pickupNotCompletedNewAppointment:
+                summary: Pick-up not completed - new appointment
+                value:
+                  date_transmission: '2026-06-22T09:43:24'
+                  order:
+                    external_reference: '0312062064'
+                  situation:
+                    situation_code: ENE
+                    justification_code: NRV
+                    date: '2026-06-15T00:00:00'
+                    input_date: '2026-06-22T09:43:24'
+      responses:
+        '200':
+          description: Event accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceException'
+        '401':
           description: Unauthorized
 
 components:
@@ -107,172 +161,384 @@ components:
       required: [meta, shipment]
       properties:
         meta:
-          $ref: "#/components/schemas/Meta"
+          $ref: '#/components/schemas/Meta'
         shipment:
-          $ref: "#/components/schemas/Shipment"
+          $ref: '#/components/schemas/Shipment'
+      additionalProperties: true
 
     Meta:
       type: object
       description: Message envelope metadata
-      required:
-        - messageDate
+      required: [messageDate]
       properties:
         senderId:
           type: string
-          description: Partner sender identifier
         duplicateReceiverId:
           type: string
-          description: Optional additional receiver identifier
         messageType:
           type: string
-          description: Message type
           example: GTF511
         messageDate:
           type: string
           format: date-time
-          description: Order date (saved to Intertrans)
           x-intertrans: Order date
         messageFunction:
           type: string
-          description: Message function code
         messageReference:
           type: string
-          description: Message unique reference
       additionalProperties: true
 
     Shipment:
       type: object
-      description: Shipment payload
-      required:
-        - reference
-        - pickup
-        - delivery
+      required: [reference, pickup, delivery]
       properties:
         reference:
           type: string
-          description: Shipment reference (saved to Intertrans)
           x-intertrans: Reference
         goodsDescription:
           type: string
-          description: Description of goods (saved to Intertrans)
           x-intertrans: goods descr.
         customerReference:
           type: string
-          description: Customer reference (saved to Intertrans)
           x-intertrans: Customer Ref.
         shipperReference:
           type: string
-          description: Shipper reference (saved to Intertrans)
           x-intertrans: Shipper Ref.
-
         pickup:
-          $ref: "#/components/schemas/Pickup"
+          $ref: '#/components/schemas/Pickup'
         delivery:
-          $ref: "#/components/schemas/Delivery"
+          $ref: '#/components/schemas/Delivery'
         totals:
-          $ref: "#/components/schemas/Totals"
+          $ref: '#/components/schemas/Totals'
       additionalProperties: true
 
     Pickup:
       type: object
-      description: Pickup information
+      required: [address]
       properties:
         address:
-          $ref: "#/components/schemas/Address"
+          $ref: '#/components/schemas/Address'
         departureDateTime:
           type: string
           format: date-time
-          description: Departure date/time (saved to Intertrans)
           x-intertrans: Departure date
       additionalProperties: true
 
     Delivery:
       type: object
-      description: Delivery information
+      required: [address]
       properties:
         address:
-          $ref: "#/components/schemas/Address"
+          $ref: '#/components/schemas/Address'
         deliveryDateTime:
           type: string
           format: date-time
-          description: Delivery date/time (saved to Intertrans)
           x-intertrans: Date of delivery
       additionalProperties: true
 
     Address:
       type: object
-      description: Address object (same mapping for FROM/TO)
+      required: [name]
       properties:
         name:
           type: string
-          description: Name / Address
           x-intertrans: Address
         address1:
           type: string
-          description: Street
           x-intertrans: Street
         address2:
           type: string
-          description: Not used in Intertrans (kept for compatibility)
           x-intertrans: ?? ????????????
         country:
           type: string
-          description: Country code (ISO 3166-1 alpha-2)
           minLength: 2
           maxLength: 2
           x-intertrans: country
         postalCode:
           type: string
-          description: ZIP / postal code
           x-intertrans: ZIPCode
         city:
           type: string
-          description: City
           x-intertrans: city
       additionalProperties: true
 
     Totals:
       type: object
-      description: Totals / measures
       properties:
         grossWeight:
           type: number
-          description: Actual weight (saved to Intertrans)
           x-intertrans: Actual weight
         grossVolume:
           type: number
-          description: Volume (saved to Intertrans)
           x-intertrans: Volume
       additionalProperties: true
 
+    OutboundEventMessage:
+      type: object
+      required:
+        - date_transmission
+        - order
+        - situation
+      properties:
+        date_transmission:
+          type: string
+          format: date-time
+          description: Transmission timestamp
+          x-intertrans: Current date
+        order:
+          $ref: '#/components/schemas/Order'
+        situation:
+          $ref: '#/components/schemas/Situation'
+      additionalProperties: false
+
+    Order:
+      type: object
+      required: [external_reference]
+      properties:
+        external_reference:
+          type: string
+          description: Order reference
+          x-intertrans: Order reference
+      additionalProperties: false
+
+    Situation:
+      description: >
+        Event / justification mapping according to Mappe Shippeo Out.xlsx.
+        The allowed justification_code values depend on situation_code.
+      oneOf:
+        - $ref: '#/components/schemas/Situation_CHG'
+        - $ref: '#/components/schemas/Situation_DCH'
+        - $ref: '#/components/schemas/Situation_EPC'
+        - $ref: '#/components/schemas/Situation_COM'
+        - $ref: '#/components/schemas/Situation_EML'
+        - $ref: '#/components/schemas/Situation_ARS'
+        - $ref: '#/components/schemas/Situation_ECH'
+        - $ref: '#/components/schemas/Situation_DES'
+        - $ref: '#/components/schemas/Situation_ENE'
+        - $ref: '#/components/schemas/Situation_MLV'
+        - $ref: '#/components/schemas/Situation_LIV'
+        - $ref: '#/components/schemas/Situation_REN'
+
+    SituationBase:
+      type: object
+      required:
+        - situation_code
+        - date
+      properties:
+        situation_code:
+          type: string
+          description: Shippeo event code
+        justification_code:
+          type: string
+          nullable: true
+          description: Shippeo justification code valid for the selected situation_code
+        date:
+          type: string
+          format: date-time
+          description: Event date
+          x-intertrans: Event date
+        input_date:
+          type: string
+          format: date-time
+          description: Processing timestamp
+          x-intertrans: Current date
+      additionalProperties: false
+
+    Situation_CHG:
+      allOf:
+        - $ref: '#/components/schemas/SituationBase'
+        - type: object
+          properties:
+            situation_code:
+              type: string
+              enum: [CHG]
+              description: Left Terminal
+              nullable: true
+            justification_code:
+              type: string
+              nullable: true
+              enum: [CFM]
+
     Ack:
       type: object
+      description: Generic success response
       properties:
         status:
           type: string
           example: ok
         message:
           type: string
-          example: accepted
+          example: Accepted
+        order:
+          type: string
+          nullable: true
+          description: Intertrans order reference
+      additionalProperties: true
 
     ServiceException:
       type: object
-      description: Standard error response
+      description: Generic error response
       properties:
-        error:
+        status:
           type: string
-          example: validation_error
-        details:
-          type: array
-          items:
-            $ref: "#/components/schemas/ServiceExceptionItem"
-
-    ServiceExceptionItem:
-      type: object
-      properties:
-        field:
-          type: string
-          example: meta.messageDate
+          example: error
         message:
           type: string
-          example: must be RFC3339 date-time
+          description: Error message
+        code:
+          type: string
+          nullable: true
+          description: Optional service error code
+        details:
+          type: object
+          nullable: true
+          additionalProperties: true
+      additionalProperties: true
+
+    Situation_DCH:
+      allOf:
+        - $ref: '#/components/schemas/SituationBase'
+        - type: object
+          properties:
+            situation_code:
+              type: string
+              enum: [DCH]
+              description: Arrival at Terminal
+            justification_code:
+              type: string
+              nullable: true
+              enum: [CFM]
+
+    Situation_EPC:
+      allOf:
+        - $ref: '#/components/schemas/SituationBase'
+        - type: object
+          properties:
+            situation_code:
+              type: string
+              enum: [EPC]
+              description: Booking completed
+            justification_code:
+              type: string
+              enum: [CFM, NCF]
+              description: Accepted / Refused
+
+    Situation_COM:
+      allOf:
+        - $ref: '#/components/schemas/SituationBase'
+        - type: object
+          properties:
+            situation_code:
+              type: string
+              enum: [COM]
+              description: Transport mean selected
+            justification_code:
+              type: string
+              enum: [CFM]
+              description: Conform
+
+    Situation_EML:
+      allOf:
+        - $ref: '#/components/schemas/SituationBase'
+        - type: object
+          properties:
+            situation_code:
+              type: string
+              enum: [EML]
+              description: Pick-up started
+            justification_code:
+              type: string
+              enum: [CFM, ARS]
+              description: In progress / Arrival of transport mean
+
+    Situation_ARS:
+      allOf:
+        - $ref: '#/components/schemas/SituationBase'
+        - type: object
+          properties:
+            situation_code:
+              type: string
+              enum: [ARS]
+              description: Arrival of transport mean
+            justification_code:
+              type: string
+              nullable: true
+
+    Situation_ECH:
+      allOf:
+        - $ref: '#/components/schemas/SituationBase'
+        - type: object
+          properties:
+            situation_code:
+              type: string
+              enum: [ECH]
+              description: Pick-up completed
+            justification_code:
+              type: string
+              enum: [CFM, NCF, MQP, DES]
+
+    Situation_DES:
+      allOf:
+        - $ref: '#/components/schemas/SituationBase'
+        - type: object
+          properties:
+            situation_code:
+              type: string
+              enum: [DES]
+              description: Left loading/delivery site
+            justification_code:
+              type: string
+              nullable: true
+
+    Situation_ENE:
+      allOf:
+        - $ref: '#/components/schemas/SituationBase'
+        - type: object
+          properties:
+            situation_code:
+              type: string
+              enum: [ENE]
+              description: Pick-up not completed
+            justification_code:
+              type: string
+              enum: [NRV, NJU, DIV, MQP, MQT]
+
+    Situation_MLV:
+      allOf:
+        - $ref: '#/components/schemas/SituationBase'
+        - type: object
+          properties:
+            situation_code:
+              type: string
+              enum: [MLV]
+              description: Delivery in progress
+            justification_code:
+              type: string
+              enum: [CFM, ARS]
+
+    Situation_LIV:
+      allOf:
+        - $ref: '#/components/schemas/SituationBase'
+        - type: object
+          properties:
+            situation_code:
+              type: string
+              enum: [LIV]
+              description: Delivery completed
+            justification_code:
+              type: string
+              enum: [CFM, DIV, MQP, RCA, DES]
+
+    Situation_REN:
+      allOf:
+        - $ref: '#/components/schemas/SituationBase'
+        - type: object
+          properties:
+            situation_code:
+              type: string
+              enum: [REN]
+              description: Not delivered
+            justification_code:
+              type: string
+              enum: [NRV, NJU, DIV, AVA, MQP, MQT, TAR, AVI, DAF, DEM, FCO, FHB, LNA]
+
